@@ -228,6 +228,7 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 
 			ticker.Reset(streamingTimeout)
 			data := scanner.Text()
+			CaptureUpstreamKeywordPayload(c, info, "stream_scanner_raw_line", resp.StatusCode, data)
 			logger.LogDebug(c, "stream scanner data: %s", data)
 
 			if len(data) < 6 {

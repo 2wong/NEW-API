@@ -197,6 +197,7 @@ func OpenaiHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Respo
 	if err != nil {
 		return nil, types.NewOpenAIError(err, types.ErrorCodeReadResponseBodyFailed, http.StatusInternalServerError)
 	}
+	helper.CaptureUpstreamKeywordPayload(c, info, "openai_non_stream_body", resp.StatusCode, string(responseBody))
 	logger.LogDebug(c, "upstream response body: %s", responseBody)
 	// Unmarshal to simpleResponse
 	if info.ChannelType == constant.ChannelTypeOpenRouter && info.ChannelOtherSettings.IsOpenRouterEnterprise() {
@@ -211,6 +212,18 @@ func OpenaiHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Respo
 		} else {
 			logger.LogError(c, fmt.Sprintf("openrouter enterprise response success=false, data: %s", enterpriseResponse.Data))
 			return nil, types.NewOpenAIError(fmt.Errorf("openrouter response success=false"), types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
+		}
+	}
+	if shouldNormalizeNonStreamEventStreamResponse(resp.Header.Get("Content-Type"), responseBody) {
+		if normalizedBody, normalized, normalizeErr := normalizeNonStreamEventStreamResponseBody(responseBody); normalized {
+			if normalizeErr != nil {
+				return nil, types.NewOpenAIError(normalizeErr, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
+			}
+			responseBody = normalizedBody
+			if resp.Header == nil {
+				resp.Header = make(http.Header)
+			}
+			resp.Header.Set("Content-Type", "application/json")
 		}
 	}
 

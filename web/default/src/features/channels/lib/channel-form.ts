@@ -61,6 +61,12 @@ export const channelFormSchema = z.object({
   pass_through_body_enabled: z.boolean().optional(),
   system_prompt: z.string().optional(),
   system_prompt_override: z.boolean().optional(),
+  upstream_keyword_capture_enabled: z.boolean().optional(),
+  upstream_keyword_capture_keywords: z.string().optional(),
+  upstream_keyword_capture_switch_enabled: z.boolean().optional(),
+  upstream_keyword_capture_switch_channel_id: z.number().optional(),
+  upstream_keyword_capture_switch_count: z.number().optional(),
+  upstream_keyword_capture_switch_ttl_seconds: z.number().optional(),
   // Type-specific settings (stored in settings JSON)
   is_enterprise_account: z.boolean().optional(), // OpenRouter specific
   vertex_key_type: z.enum(['json', 'api_key']).optional(), // Vertex AI specific
@@ -81,6 +87,47 @@ export const channelFormSchema = z.object({
 })
 
 export type ChannelFormValues = z.infer<typeof channelFormSchema>
+
+export const UPSTREAM_KEYWORD_CAPTURE_DEFAULT_KEYWORDS = [
+  'cyber_policy',
+  'REQUEST_BLOCKED',
+  'This content was flagged for possible cybersecurity risk',
+  'Trusted Access for Cyber',
+  'chatgpt.com/cyber',
+] as const
+export const UPSTREAM_KEYWORD_CAPTURE_DEFAULT_SWITCH_CHANNEL_ID = 15
+export const UPSTREAM_KEYWORD_CAPTURE_DEFAULT_SWITCH_COUNT = 1
+export const UPSTREAM_KEYWORD_CAPTURE_DEFAULT_SWITCH_TTL_SECONDS = 600
+
+export function formatUpstreamKeywordCaptureKeywords(
+  keywords: unknown
+): string {
+  return Array.isArray(keywords)
+    ? keywords
+        .map((keyword) => String(keyword).trim())
+        .filter(Boolean)
+        .join('\n')
+    : ''
+}
+
+function parseUpstreamKeywordCaptureKeywords(value: string | undefined) {
+  const seen = new Set<string>()
+  return String(value || '')
+    .split(/\r?\n/)
+    .map((keyword) => keyword.trim())
+    .filter((keyword) => {
+      if (!keyword) return false
+      const key = keyword.toLowerCase()
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
+}
+
+function parsePositiveInteger(value: unknown, fallback: number): number {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : fallback
+}
 
 // ============================================================================
 // Default Form Values
@@ -119,6 +166,15 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   pass_through_body_enabled: false,
   system_prompt: '',
   system_prompt_override: false,
+  upstream_keyword_capture_enabled: false,
+  upstream_keyword_capture_keywords: '',
+  upstream_keyword_capture_switch_enabled: false,
+  upstream_keyword_capture_switch_channel_id:
+    UPSTREAM_KEYWORD_CAPTURE_DEFAULT_SWITCH_CHANNEL_ID,
+  upstream_keyword_capture_switch_count:
+    UPSTREAM_KEYWORD_CAPTURE_DEFAULT_SWITCH_COUNT,
+  upstream_keyword_capture_switch_ttl_seconds:
+    UPSTREAM_KEYWORD_CAPTURE_DEFAULT_SWITCH_TTL_SECONDS,
   // Type-specific settings
   is_enterprise_account: false,
   vertex_key_type: 'json',
@@ -155,6 +211,15 @@ export function transformChannelToFormDefaults(
     pass_through_body_enabled: false,
     system_prompt: '',
     system_prompt_override: false,
+    upstream_keyword_capture_enabled: false,
+    upstream_keyword_capture_keywords: '',
+    upstream_keyword_capture_switch_enabled: false,
+    upstream_keyword_capture_switch_channel_id:
+      UPSTREAM_KEYWORD_CAPTURE_DEFAULT_SWITCH_CHANNEL_ID,
+    upstream_keyword_capture_switch_count:
+      UPSTREAM_KEYWORD_CAPTURE_DEFAULT_SWITCH_COUNT,
+    upstream_keyword_capture_switch_ttl_seconds:
+      UPSTREAM_KEYWORD_CAPTURE_DEFAULT_SWITCH_TTL_SECONDS,
   }
 
   if (channel.setting) {
@@ -167,6 +232,26 @@ export function transformChannelToFormDefaults(
         pass_through_body_enabled: parsed.pass_through_body_enabled || false,
         system_prompt: parsed.system_prompt || '',
         system_prompt_override: parsed.system_prompt_override || false,
+        upstream_keyword_capture_enabled:
+          parsed.upstream_keyword_capture_enabled === true,
+        upstream_keyword_capture_keywords:
+          formatUpstreamKeywordCaptureKeywords(
+            parsed.upstream_keyword_capture_keywords
+          ),
+        upstream_keyword_capture_switch_enabled:
+          parsed.upstream_keyword_capture_switch_enabled === true,
+        upstream_keyword_capture_switch_channel_id: parsePositiveInteger(
+          parsed.upstream_keyword_capture_switch_channel_id,
+          UPSTREAM_KEYWORD_CAPTURE_DEFAULT_SWITCH_CHANNEL_ID
+        ),
+        upstream_keyword_capture_switch_count: parsePositiveInteger(
+          parsed.upstream_keyword_capture_switch_count,
+          UPSTREAM_KEYWORD_CAPTURE_DEFAULT_SWITCH_COUNT
+        ),
+        upstream_keyword_capture_switch_ttl_seconds: parsePositiveInteger(
+          parsed.upstream_keyword_capture_switch_ttl_seconds,
+          UPSTREAM_KEYWORD_CAPTURE_DEFAULT_SWITCH_TTL_SECONDS
+        ),
       }
     } catch (error) {
       // eslint-disable-next-line no-console
@@ -276,6 +361,25 @@ function buildSettingJSON(formData: ChannelFormValues): string {
     pass_through_body_enabled: formData.pass_through_body_enabled || false,
     system_prompt: formData.system_prompt || '',
     system_prompt_override: formData.system_prompt_override || false,
+    upstream_keyword_capture_enabled:
+      formData.upstream_keyword_capture_enabled === true,
+    upstream_keyword_capture_keywords: parseUpstreamKeywordCaptureKeywords(
+      formData.upstream_keyword_capture_keywords
+    ),
+    upstream_keyword_capture_switch_enabled:
+      formData.upstream_keyword_capture_switch_enabled === true,
+    upstream_keyword_capture_switch_channel_id: parsePositiveInteger(
+      formData.upstream_keyword_capture_switch_channel_id,
+      UPSTREAM_KEYWORD_CAPTURE_DEFAULT_SWITCH_CHANNEL_ID
+    ),
+    upstream_keyword_capture_switch_count: parsePositiveInteger(
+      formData.upstream_keyword_capture_switch_count,
+      UPSTREAM_KEYWORD_CAPTURE_DEFAULT_SWITCH_COUNT
+    ),
+    upstream_keyword_capture_switch_ttl_seconds: parsePositiveInteger(
+      formData.upstream_keyword_capture_switch_ttl_seconds,
+      UPSTREAM_KEYWORD_CAPTURE_DEFAULT_SWITCH_TTL_SECONDS
+    ),
   }
   return JSON.stringify(settingObj)
 }

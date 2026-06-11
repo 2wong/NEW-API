@@ -1,12 +1,18 @@
 package dto
 
 type ChannelSettings struct {
-	ForceFormat            bool   `json:"force_format,omitempty"`
-	ThinkingToContent      bool   `json:"thinking_to_content,omitempty"`
-	Proxy                  string `json:"proxy"`
-	PassThroughBodyEnabled bool   `json:"pass_through_body_enabled,omitempty"`
-	SystemPrompt           string `json:"system_prompt,omitempty"`
-	SystemPromptOverride   bool   `json:"system_prompt_override,omitempty"`
+	ForceFormat                            bool     `json:"force_format,omitempty"`
+	ThinkingToContent                      bool     `json:"thinking_to_content,omitempty"`
+	Proxy                                  string   `json:"proxy"`
+	PassThroughBodyEnabled                 bool     `json:"pass_through_body_enabled,omitempty"`
+	SystemPrompt                           string   `json:"system_prompt,omitempty"`
+	SystemPromptOverride                   bool     `json:"system_prompt_override,omitempty"`
+	UpstreamKeywordCaptureEnabled          bool     `json:"upstream_keyword_capture_enabled,omitempty"`
+	UpstreamKeywordCaptureKeywords         []string `json:"upstream_keyword_capture_keywords,omitempty"`
+	UpstreamKeywordCaptureSwitchEnabled    bool     `json:"upstream_keyword_capture_switch_enabled,omitempty"`
+	UpstreamKeywordCaptureSwitchChannelId  int      `json:"upstream_keyword_capture_switch_channel_id,omitempty"`
+	UpstreamKeywordCaptureSwitchCount      int      `json:"upstream_keyword_capture_switch_count,omitempty"`
+	UpstreamKeywordCaptureSwitchTTLSeconds int      `json:"upstream_keyword_capture_switch_ttl_seconds,omitempty"`
 }
 
 type VertexKeyType string

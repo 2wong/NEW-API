@@ -230,6 +230,9 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 
 		processChannelError(c, *types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey, common.GetContextKeyString(c, constant.ContextKeyChannelKey), channel.GetAutoBan()), newAPIError)
 
+		if types.IsUpstreamKeywordCapturedError(newAPIError) {
+			retryParam.ResetRetryNextTry()
+		}
 		if !shouldRetry(c, newAPIError, common.RetryTimes-retryParam.GetRetry()) {
 			break
 		}
@@ -303,6 +306,21 @@ func getChannel(c *gin.Context, info *relaycommon.RelayInfo, retryParam *service
 			AutoBan: &autoBanInt,
 		}, nil
 	}
+	switchGroup := common.GetContextKeyString(c, constant.ContextKeyAutoGroup)
+	if switchGroup == "" {
+		switchGroup = common.GetContextKeyString(c, constant.ContextKeyUsingGroup)
+	}
+	if switchGroup == "" {
+		switchGroup = info.UsingGroup
+	}
+	if channel, ok := service.ApplyUpstreamKeywordCaptureCurrentRetryChannelSwitch(c, info.OriginModelName, switchGroup); ok {
+		newAPIError := middleware.SetupContextForSelectedChannel(c, channel, info.OriginModelName)
+		if newAPIError != nil {
+			return nil, newAPIError
+		}
+		return channel, nil
+	}
+
 	channel, selectGroup, err := service.CacheGetRandomSatisfiedChannel(retryParam)
 
 	info.PriceData.GroupRatioInfo = helper.HandleGroupRatio(c, info)
@@ -313,6 +331,15 @@ func getChannel(c *gin.Context, info *relaycommon.RelayInfo, retryParam *service
 	if channel == nil {
 		return nil, types.NewError(fmt.Errorf("分组 %s 下模型 %s 的可用渠道不存在（retry）", selectGroup, info.OriginModelName), types.ErrorCodeGetChannelFailed, types.ErrOptionWithSkipRetry())
 	}
+
+	switchGroup = common.GetContextKeyString(c, constant.ContextKeyAutoGroup)
+	if switchGroup == "" {
+		switchGroup = selectGroup
+	}
+	if switchGroup == "" {
+		switchGroup = info.UsingGroup
+	}
+	channel = service.ApplyUpstreamKeywordCaptureChannelSwitch(c, channel, info.OriginModelName, switchGroup)
 
 	newAPIError := middleware.SetupContextForSelectedChannel(c, channel, info.OriginModelName)
 	if newAPIError != nil {
@@ -333,6 +360,9 @@ func shouldRetry(c *gin.Context, openaiErr *types.NewAPIError, retryTimes int) b
 	}
 	if types.IsSkipRetryError(openaiErr) {
 		return false
+	}
+	if types.IsUpstreamKeywordCapturedError(openaiErr) {
+		return true
 	}
 	if retryTimes <= 0 {
 		return false

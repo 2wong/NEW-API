@@ -88,6 +88,46 @@ import {
 
 const { Text, Title } = Typography;
 
+const UPSTREAM_KEYWORD_CAPTURE_DEFAULT_KEYWORDS = [
+  'cyber_policy',
+  'REQUEST_BLOCKED',
+  'This content was flagged for possible cybersecurity risk',
+  'Trusted Access for Cyber',
+  'chatgpt.com/cyber',
+];
+const UPSTREAM_KEYWORD_CAPTURE_DEFAULT_TEXT =
+  UPSTREAM_KEYWORD_CAPTURE_DEFAULT_KEYWORDS.join('\n');
+const UPSTREAM_KEYWORD_CAPTURE_DEFAULT_SWITCH_CHANNEL_ID = 15;
+const UPSTREAM_KEYWORD_CAPTURE_DEFAULT_SWITCH_COUNT = 1;
+const UPSTREAM_KEYWORD_CAPTURE_DEFAULT_SWITCH_TTL_SECONDS = 600;
+
+const formatUpstreamKeywordCaptureKeywords = (keywords) =>
+  Array.isArray(keywords)
+    ? keywords
+        .map((keyword) => String(keyword || '').trim())
+        .filter(Boolean)
+        .join('\n')
+    : '';
+
+const parseUpstreamKeywordCaptureKeywords = (value) => {
+  const seen = new Set();
+  return String(value || '')
+    .split(/\r?\n/)
+    .map((keyword) => keyword.trim())
+    .filter((keyword) => {
+      if (!keyword) return false;
+      const key = keyword.toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+};
+
+const parsePositiveInteger = (value, fallback) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : fallback;
+};
+
 const MODEL_MAPPING_EXAMPLE = {
   'gpt-3.5-turbo': 'gpt-3.5-turbo-0125',
 };
@@ -195,6 +235,15 @@ const EditChannelModal = (props) => {
     pass_through_body_enabled: false,
     system_prompt: '',
     system_prompt_override: false,
+    upstream_keyword_capture_enabled: false,
+    upstream_keyword_capture_keywords: '',
+    upstream_keyword_capture_switch_enabled: false,
+    upstream_keyword_capture_switch_channel_id:
+      UPSTREAM_KEYWORD_CAPTURE_DEFAULT_SWITCH_CHANNEL_ID,
+    upstream_keyword_capture_switch_count:
+      UPSTREAM_KEYWORD_CAPTURE_DEFAULT_SWITCH_COUNT,
+    upstream_keyword_capture_switch_ttl_seconds:
+      UPSTREAM_KEYWORD_CAPTURE_DEFAULT_SWITCH_TTL_SECONDS,
     settings: '',
     // 仅 Vertex: 密钥格式（存入 settings.vertex_key_type）
     vertex_key_type: 'json',
@@ -517,6 +566,15 @@ const EditChannelModal = (props) => {
     proxy: '',
     pass_through_body_enabled: false,
     system_prompt: '',
+    upstream_keyword_capture_enabled: false,
+    upstream_keyword_capture_keywords: '',
+    upstream_keyword_capture_switch_enabled: false,
+    upstream_keyword_capture_switch_channel_id:
+      UPSTREAM_KEYWORD_CAPTURE_DEFAULT_SWITCH_CHANNEL_ID,
+    upstream_keyword_capture_switch_count:
+      UPSTREAM_KEYWORD_CAPTURE_DEFAULT_SWITCH_COUNT,
+    upstream_keyword_capture_switch_ttl_seconds:
+      UPSTREAM_KEYWORD_CAPTURE_DEFAULT_SWITCH_TTL_SECONDS,
   });
   const showApiConfigCard = true; // 控制是否显示 API 配置卡片
   const getInitValues = () => ({ ...originInputs });
@@ -870,6 +928,28 @@ const EditChannelModal = (props) => {
           data.system_prompt = parsedSettings.system_prompt || '';
           data.system_prompt_override =
             parsedSettings.system_prompt_override || false;
+          data.upstream_keyword_capture_enabled =
+            parsedSettings.upstream_keyword_capture_enabled === true;
+          data.upstream_keyword_capture_keywords =
+            formatUpstreamKeywordCaptureKeywords(
+              parsedSettings.upstream_keyword_capture_keywords,
+            );
+          data.upstream_keyword_capture_switch_enabled =
+            parsedSettings.upstream_keyword_capture_switch_enabled === true;
+          data.upstream_keyword_capture_switch_channel_id =
+            parsePositiveInteger(
+              parsedSettings.upstream_keyword_capture_switch_channel_id,
+              UPSTREAM_KEYWORD_CAPTURE_DEFAULT_SWITCH_CHANNEL_ID,
+            );
+          data.upstream_keyword_capture_switch_count = parsePositiveInteger(
+            parsedSettings.upstream_keyword_capture_switch_count,
+            UPSTREAM_KEYWORD_CAPTURE_DEFAULT_SWITCH_COUNT,
+          );
+          data.upstream_keyword_capture_switch_ttl_seconds =
+            parsePositiveInteger(
+              parsedSettings.upstream_keyword_capture_switch_ttl_seconds,
+              UPSTREAM_KEYWORD_CAPTURE_DEFAULT_SWITCH_TTL_SECONDS,
+            );
         } catch (error) {
           console.error('解析渠道设置失败:', error);
           data.force_format = false;
@@ -878,6 +958,15 @@ const EditChannelModal = (props) => {
           data.pass_through_body_enabled = false;
           data.system_prompt = '';
           data.system_prompt_override = false;
+          data.upstream_keyword_capture_enabled = false;
+          data.upstream_keyword_capture_keywords = '';
+          data.upstream_keyword_capture_switch_enabled = false;
+          data.upstream_keyword_capture_switch_channel_id =
+            UPSTREAM_KEYWORD_CAPTURE_DEFAULT_SWITCH_CHANNEL_ID;
+          data.upstream_keyword_capture_switch_count =
+            UPSTREAM_KEYWORD_CAPTURE_DEFAULT_SWITCH_COUNT;
+          data.upstream_keyword_capture_switch_ttl_seconds =
+            UPSTREAM_KEYWORD_CAPTURE_DEFAULT_SWITCH_TTL_SECONDS;
         }
       } else {
         data.force_format = false;
@@ -886,6 +975,15 @@ const EditChannelModal = (props) => {
         data.pass_through_body_enabled = false;
         data.system_prompt = '';
         data.system_prompt_override = false;
+        data.upstream_keyword_capture_enabled = false;
+        data.upstream_keyword_capture_keywords = '';
+        data.upstream_keyword_capture_switch_enabled = false;
+        data.upstream_keyword_capture_switch_channel_id =
+          UPSTREAM_KEYWORD_CAPTURE_DEFAULT_SWITCH_CHANNEL_ID;
+        data.upstream_keyword_capture_switch_count =
+          UPSTREAM_KEYWORD_CAPTURE_DEFAULT_SWITCH_COUNT;
+        data.upstream_keyword_capture_switch_ttl_seconds =
+          UPSTREAM_KEYWORD_CAPTURE_DEFAULT_SWITCH_TTL_SECONDS;
       }
 
       if (data.settings) {
@@ -995,6 +1093,21 @@ const EditChannelModal = (props) => {
         pass_through_body_enabled: data.pass_through_body_enabled,
         system_prompt: data.system_prompt,
         system_prompt_override: data.system_prompt_override || false,
+        upstream_keyword_capture_enabled:
+          data.upstream_keyword_capture_enabled || false,
+        upstream_keyword_capture_keywords:
+          data.upstream_keyword_capture_keywords || '',
+        upstream_keyword_capture_switch_enabled:
+          data.upstream_keyword_capture_switch_enabled || false,
+        upstream_keyword_capture_switch_channel_id:
+          data.upstream_keyword_capture_switch_channel_id ||
+          UPSTREAM_KEYWORD_CAPTURE_DEFAULT_SWITCH_CHANNEL_ID,
+        upstream_keyword_capture_switch_count:
+          data.upstream_keyword_capture_switch_count ||
+          UPSTREAM_KEYWORD_CAPTURE_DEFAULT_SWITCH_COUNT,
+        upstream_keyword_capture_switch_ttl_seconds:
+          data.upstream_keyword_capture_switch_ttl_seconds ||
+          UPSTREAM_KEYWORD_CAPTURE_DEFAULT_SWITCH_TTL_SECONDS,
       });
       initialModelsRef.current = (data.models || [])
         .map((model) => (model || '').trim())
@@ -1037,7 +1150,11 @@ const EditChannelModal = (props) => {
         data.pass_through_body_enabled ||
         data.force_format ||
         data.claude_beta_query ||
-        data.system_prompt_override;
+        data.system_prompt_override ||
+        data.upstream_keyword_capture_enabled ||
+        data.upstream_keyword_capture_switch_enabled ||
+        (data.upstream_keyword_capture_keywords &&
+          data.upstream_keyword_capture_keywords.trim());
       if (hasAdvancedValues) {
         setAdvancedSettingsOpen(true);
       }
@@ -1384,6 +1501,15 @@ const EditChannelModal = (props) => {
       pass_through_body_enabled: false,
       system_prompt: '',
       system_prompt_override: false,
+      upstream_keyword_capture_enabled: false,
+      upstream_keyword_capture_keywords: '',
+      upstream_keyword_capture_switch_enabled: false,
+      upstream_keyword_capture_switch_channel_id:
+        UPSTREAM_KEYWORD_CAPTURE_DEFAULT_SWITCH_CHANNEL_ID,
+      upstream_keyword_capture_switch_count:
+        UPSTREAM_KEYWORD_CAPTURE_DEFAULT_SWITCH_COUNT,
+      upstream_keyword_capture_switch_ttl_seconds:
+        UPSTREAM_KEYWORD_CAPTURE_DEFAULT_SWITCH_TTL_SECONDS,
     });
     // 重置密钥模式状态
     setKeyMode('append');
@@ -1754,6 +1880,25 @@ const EditChannelModal = (props) => {
       pass_through_body_enabled: localInputs.pass_through_body_enabled || false,
       system_prompt: localInputs.system_prompt || '',
       system_prompt_override: localInputs.system_prompt_override || false,
+      upstream_keyword_capture_enabled:
+        localInputs.upstream_keyword_capture_enabled === true,
+      upstream_keyword_capture_keywords: parseUpstreamKeywordCaptureKeywords(
+        localInputs.upstream_keyword_capture_keywords,
+      ),
+      upstream_keyword_capture_switch_enabled:
+        localInputs.upstream_keyword_capture_switch_enabled === true,
+      upstream_keyword_capture_switch_channel_id: parsePositiveInteger(
+        localInputs.upstream_keyword_capture_switch_channel_id,
+        UPSTREAM_KEYWORD_CAPTURE_DEFAULT_SWITCH_CHANNEL_ID,
+      ),
+      upstream_keyword_capture_switch_count: parsePositiveInteger(
+        localInputs.upstream_keyword_capture_switch_count,
+        UPSTREAM_KEYWORD_CAPTURE_DEFAULT_SWITCH_COUNT,
+      ),
+      upstream_keyword_capture_switch_ttl_seconds: parsePositiveInteger(
+        localInputs.upstream_keyword_capture_switch_ttl_seconds,
+        UPSTREAM_KEYWORD_CAPTURE_DEFAULT_SWITCH_TTL_SECONDS,
+      ),
     };
     localInputs.setting = JSON.stringify(channelExtraSettings);
 
@@ -1835,6 +1980,12 @@ const EditChannelModal = (props) => {
     delete localInputs.pass_through_body_enabled;
     delete localInputs.system_prompt;
     delete localInputs.system_prompt_override;
+    delete localInputs.upstream_keyword_capture_enabled;
+    delete localInputs.upstream_keyword_capture_keywords;
+    delete localInputs.upstream_keyword_capture_switch_enabled;
+    delete localInputs.upstream_keyword_capture_switch_channel_id;
+    delete localInputs.upstream_keyword_capture_switch_count;
+    delete localInputs.upstream_keyword_capture_switch_ttl_seconds;
     delete localInputs.is_enterprise_account;
     // 顶层的 vertex_key_type 不应发送给后端
     delete localInputs.vertex_key_type;
@@ -2453,6 +2604,121 @@ const EditChannelModal = (props) => {
                     showClear
                     onChange={(value) => handleInputChange('tag', value)}
                   />
+                  <div className='mt-3 rounded-lg border border-gray-100 p-3'>
+                    <div className='flex items-center justify-between gap-2'>
+                      <Form.Switch
+                        field='upstream_keyword_capture_enabled'
+                        label={t('上游关键词捕获')}
+                        checkedText={t('开')}
+                        uncheckedText={t('关')}
+                        onChange={(value) =>
+                          handleChannelSettingsChange(
+                            'upstream_keyword_capture_enabled',
+                            value,
+                          )
+                        }
+                        extraText={t(
+                          '命中配置关键词时记录上游原始响应片段，不改变响应、不触发重试',
+                        )}
+                      />
+                      <Button
+                        htmlType='button'
+                        size='small'
+                        theme='light'
+                        onClick={() =>
+                          handleChannelSettingsChange(
+                            'upstream_keyword_capture_keywords',
+                            UPSTREAM_KEYWORD_CAPTURE_DEFAULT_TEXT,
+                          )
+                        }
+                      >
+                        {t('填入常用关键词')}
+                      </Button>
+                    </div>
+                    <Form.TextArea
+                      field='upstream_keyword_capture_keywords'
+                      label={t('关键词')}
+                      placeholder={t('每行一个关键词，例如：cyber_policy')}
+                      autosize
+                      showClear
+                      onChange={(value) =>
+                        handleChannelSettingsChange(
+                          'upstream_keyword_capture_keywords',
+                          value,
+                        )
+                      }
+                      extraText={t(
+                        '开关开启且关键词非空时才记录；按原始上游响应做子串匹配',
+                      )}
+                    />
+                    <div className='mt-3 border-t border-gray-100 pt-3'>
+                      <Form.Switch
+                        field='upstream_keyword_capture_switch_enabled'
+                        label={t('命中后临时切换渠道')}
+                        checkedText={t('开')}
+                        uncheckedText={t('关')}
+                        onChange={(value) =>
+                          handleChannelSettingsChange(
+                            'upstream_keyword_capture_switch_enabled',
+                            value,
+                          )
+                        }
+                        extraText={t(
+                          '命中后，下一次本来选中该渠道的请求会临时改用目标渠道；次数用完或过期后恢复正常',
+                        )}
+                      />
+                      <Row gutter={12}>
+                        <Col span={8}>
+                          <Form.InputNumber
+                            field='upstream_keyword_capture_switch_channel_id'
+                            label={t('目标渠道 ID')}
+                            min={1}
+                            placeholder='15'
+                            onNumberChange={(value) =>
+                              handleChannelSettingsChange(
+                                'upstream_keyword_capture_switch_channel_id',
+                                value,
+                              )
+                            }
+                            style={{ width: '100%' }}
+                          />
+                        </Col>
+                        <Col span={8}>
+                          <Form.InputNumber
+                            field='upstream_keyword_capture_switch_count'
+                            label={t('切换次数')}
+                            min={1}
+                            placeholder='1'
+                            onNumberChange={(value) =>
+                              handleChannelSettingsChange(
+                                'upstream_keyword_capture_switch_count',
+                                value,
+                              )
+                            }
+                            style={{ width: '100%' }}
+                          />
+                        </Col>
+                        <Col span={8}>
+                          <Form.InputNumber
+                            field='upstream_keyword_capture_switch_ttl_seconds'
+                            label={t('有效期秒')}
+                            min={1}
+                            placeholder='600'
+                            onNumberChange={(value) =>
+                              handleChannelSettingsChange(
+                                'upstream_keyword_capture_switch_ttl_seconds',
+                                value,
+                              )
+                            }
+                            style={{ width: '100%' }}
+                          />
+                        </Col>
+                      </Row>
+                      <Text type='tertiary' size='small'>
+                        {t('默认：目标渠道 15，切换 1 次，有效期 600 秒（10 分钟）')}
+                      </Text>
+                    </div>
+                  </div>
                   <Form.TextArea
                     field='remark'
                     label={t('备注')}

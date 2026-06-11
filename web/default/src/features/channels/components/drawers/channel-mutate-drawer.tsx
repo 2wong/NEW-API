@@ -128,6 +128,7 @@ import {
 } from '../../constants'
 import {
   CHANNEL_FORM_DEFAULT_VALUES,
+  UPSTREAM_KEYWORD_CAPTURE_DEFAULT_KEYWORDS,
   channelFormSchema,
   channelsQueryKeys,
   transformChannelToFormDefaults,
@@ -217,6 +218,8 @@ const MODEL_MAPPING_PREVIEW_FALLBACK: Array<{
 
 const ADVANCED_SETTINGS_EXPANDED_KEY = 'channel-advanced-settings-expanded'
 const UPSTREAM_DETECTED_MODEL_PREVIEW_LIMIT = 8
+const UPSTREAM_KEYWORD_CAPTURE_DEFAULT_TEXT =
+  UPSTREAM_KEYWORD_CAPTURE_DEFAULT_KEYWORDS.join('\n')
 
 function readAdvancedSettingsPreference(): boolean {
   if (typeof window === 'undefined') return false
@@ -239,6 +242,9 @@ function hasAdvancedSettingsValues(values: ChannelFormValues): boolean {
     values.thinking_to_content ||
     values.pass_through_body_enabled ||
     values.system_prompt_override ||
+    values.upstream_keyword_capture_enabled ||
+    values.upstream_keyword_capture_switch_enabled ||
+    values.upstream_keyword_capture_keywords?.trim() ||
     values.claude_beta_query ||
     values.upstream_model_update_check_enabled ||
     values.upstream_model_update_auto_sync_enabled ||
@@ -2602,6 +2608,183 @@ export function ChannelMutateDrawer({
                             </FormItem>
                           )}
                         />
+                      </div>
+
+                      <div className='space-y-3 rounded-lg border p-4'>
+                        <div className='flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between'>
+                          <FormField
+                            control={form.control}
+                            name='upstream_keyword_capture_enabled'
+                            render={({ field }) => (
+                              <FormItem className='flex flex-1 items-center justify-between gap-3'>
+                                <div className='space-y-0.5'>
+                                  <FormLabel>
+                                    {t('Upstream Keyword Capture')}
+                                  </FormLabel>
+                                  <FormDescription>
+                                    {t(
+                                      'Record upstream raw response snippets when configured keywords are hit. Does not change responses or retries.'
+                                    )}
+                                  </FormDescription>
+                                </div>
+                                <FormControl>
+                                  <Switch
+                                    checked={field.value === true}
+                                    onCheckedChange={field.onChange}
+                                  />
+                                </FormControl>
+                              </FormItem>
+                            )}
+                          />
+                          <Button
+                            type='button'
+                            variant='outline'
+                            size='sm'
+                            onClick={() =>
+                              form.setValue(
+                                'upstream_keyword_capture_keywords',
+                                UPSTREAM_KEYWORD_CAPTURE_DEFAULT_TEXT,
+                                {
+                                  shouldDirty: true,
+                                  shouldTouch: true,
+                                }
+                              )
+                            }
+                          >
+                            {t('Fill common keywords')}
+                          </Button>
+                        </div>
+
+                        <FormField
+                          control={form.control}
+                          name='upstream_keyword_capture_keywords'
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>{t('Keywords')}</FormLabel>
+                              <FormControl>
+                                <Textarea
+                                  rows={4}
+                                  placeholder={t(
+                                    'One keyword per line, for example: cyber_policy'
+                                  )}
+                                  value={field.value || ''}
+                                  onChange={field.onChange}
+                                />
+                              </FormControl>
+                              <FormDescription>
+                                {t(
+                                  'Only exact substring matches are recorded; empty keywords disable recording even when the switch is on.'
+                                )}
+                              </FormDescription>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+
+                        <div className='space-y-3 border-t pt-3'>
+                          <FormField
+                            control={form.control}
+                            name='upstream_keyword_capture_switch_enabled'
+                            render={({ field }) => (
+                              <FormItem className='flex items-center justify-between gap-3'>
+                                <div className='space-y-0.5'>
+                                  <FormLabel>
+                                    {t(
+                                      'Temporarily switch channel after keyword hit'
+                                    )}
+                                  </FormLabel>
+                                  <FormDescription>
+                                    {t(
+                                      'After a hit, the next request that selects this channel will use the target channel once, then return to normal selection.'
+                                    )}
+                                  </FormDescription>
+                                </div>
+                                <FormControl>
+                                  <Switch
+                                    checked={field.value === true}
+                                    onCheckedChange={field.onChange}
+                                  />
+                                </FormControl>
+                              </FormItem>
+                            )}
+                          />
+
+                          <div className='grid gap-3 sm:grid-cols-3'>
+                            <FormField
+                              control={form.control}
+                              name='upstream_keyword_capture_switch_channel_id'
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>{t('Target Channel ID')}</FormLabel>
+                                  <FormControl>
+                                    <Input
+                                      type='number'
+                                      min={1}
+                                      value={field.value || ''}
+                                      onChange={(event) =>
+                                        field.onChange(
+                                          Number(event.target.value)
+                                        )
+                                      }
+                                    />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                            <FormField
+                              control={form.control}
+                              name='upstream_keyword_capture_switch_count'
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>{t('Switch Count')}</FormLabel>
+                                  <FormControl>
+                                    <Input
+                                      type='number'
+                                      min={1}
+                                      value={field.value || ''}
+                                      onChange={(event) =>
+                                        field.onChange(
+                                          Number(event.target.value)
+                                        )
+                                      }
+                                    />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                            <FormField
+                              control={form.control}
+                              name='upstream_keyword_capture_switch_ttl_seconds'
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>
+                                    {t('Marker TTL Seconds')}
+                                  </FormLabel>
+                                  <FormControl>
+                                    <Input
+                                      type='number'
+                                      min={1}
+                                      value={field.value || ''}
+                                      onChange={(event) =>
+                                        field.onChange(
+                                          Number(event.target.value)
+                                        )
+                                      }
+                                    />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                          </div>
+                          <FormDescription>
+                            {t(
+                              'Defaults: target channel 15, switch count 1, TTL 600 seconds (10 minutes).'
+                            )}
+                          </FormDescription>
+                        </div>
                       </div>
                     </div>
 

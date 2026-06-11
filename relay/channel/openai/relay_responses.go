@@ -26,6 +26,10 @@ func OaiResponsesHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 	if err != nil {
 		return nil, types.NewOpenAIError(err, types.ErrorCodeReadResponseBodyFailed, http.StatusInternalServerError)
 	}
+	helper.CaptureUpstreamKeywordPayload(c, info, "responses_non_stream_body", resp.StatusCode, string(responseBody))
+	if _, ok := service.GetUpstreamKeywordCaptureCurrentRetrySource(c); ok {
+		return nil, helper.NewUpstreamKeywordCapturedRetryError()
+	}
 	err = common.Unmarshal(responseBody, &responsesResponse)
 	if err != nil {
 		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
@@ -78,6 +82,12 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 
 	var usage = &dto.Usage{}
 	var responseTextBuilder strings.Builder
+	bufferForKeywordRetry := shouldBufferResponsesStreamForUpstreamKeywordRetry(info)
+	type bufferedResponsesStreamData struct {
+		streamResponse dto.ResponsesStreamResponse
+		data           string
+	}
+	bufferedStreamData := make([]bufferedResponsesStreamData, 0)
 
 	helper.StreamScannerHandler(c, resp, info, func(data string, sr *helper.StreamResult) {
 
@@ -88,7 +98,14 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 			sr.Error(err)
 			return
 		}
-		sendResponsesStreamData(c, streamResponse, data)
+		if bufferForKeywordRetry {
+			bufferedStreamData = append(bufferedStreamData, bufferedResponsesStreamData{
+				streamResponse: streamResponse,
+				data:           data,
+			})
+		} else {
+			sendResponsesStreamData(c, streamResponse, data)
+		}
 		switch streamResponse.Type {
 		case "response.completed":
 			if streamResponse.Response != nil {
@@ -130,6 +147,15 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 		}
 	})
 
+	if bufferForKeywordRetry {
+		if _, ok := service.GetUpstreamKeywordCaptureCurrentRetrySource(c); ok {
+			return nil, helper.NewUpstreamKeywordCapturedRetryError()
+		}
+		for _, item := range bufferedStreamData {
+			sendResponsesStreamData(c, item.streamResponse, item.data)
+		}
+	}
+
 	if usage.CompletionTokens == 0 {
 		// 计算输出文本的 token 数量
 		tempStr := responseTextBuilder.String()
@@ -147,4 +173,14 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 	usage.TotalTokens = usage.PromptTokens + usage.CompletionTokens
 
 	return usage, nil
+}
+
+func shouldBufferResponsesStreamForUpstreamKeywordRetry(info *relaycommon.RelayInfo) bool {
+	if info == nil {
+		return false
+	}
+	setting := info.ChannelSetting
+	return setting.UpstreamKeywordCaptureEnabled &&
+		setting.UpstreamKeywordCaptureSwitchEnabled &&
+		len(helper.NormalizeUpstreamKeywordCaptureKeywords(setting.UpstreamKeywordCaptureKeywords)) > 0
 }

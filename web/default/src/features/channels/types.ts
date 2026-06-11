@@ -86,6 +86,12 @@ export interface ChannelSettings {
   pass_through_body_enabled?: boolean
   system_prompt?: string
   system_prompt_override?: boolean
+  upstream_keyword_capture_enabled?: boolean
+  upstream_keyword_capture_keywords?: string[]
+  upstream_keyword_capture_switch_enabled?: boolean
+  upstream_keyword_capture_switch_channel_id?: number
+  upstream_keyword_capture_switch_count?: number
+  upstream_keyword_capture_switch_ttl_seconds?: number
 }
 
 export interface ChannelOtherSettings {

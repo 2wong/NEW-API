@@ -158,6 +158,13 @@ func Distribute() func(c *gin.Context) {
 			}
 		}
 		common.SetContextKey(c, constant.ContextKeyRequestStartTime, time.Now())
+		if channel != nil {
+			switchGroup := common.GetContextKeyString(c, constant.ContextKeyAutoGroup)
+			if switchGroup == "" {
+				switchGroup = common.GetContextKeyString(c, constant.ContextKeyUsingGroup)
+			}
+			channel = service.ApplyUpstreamKeywordCaptureChannelSwitch(c, channel, modelRequest.Model, switchGroup)
+		}
 		SetupContextForSelectedChannel(c, channel, modelRequest.Model)
 		c.Next()
 		if channel != nil && c.Writer != nil && c.Writer.Status() < http.StatusBadRequest {
