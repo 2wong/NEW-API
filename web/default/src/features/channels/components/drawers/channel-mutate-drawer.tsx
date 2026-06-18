@@ -128,6 +128,10 @@ import {
 } from '../../constants'
 import {
   CHANNEL_FORM_DEFAULT_VALUES,
+  STATUS_CODE_RETRY_DEFAULT_CHANNEL_ID,
+  STATUS_CODE_RETRY_DEFAULT_COUNT,
+  STATUS_CODE_RETRY_DEFAULT_INTERVAL_SECONDS,
+  STATUS_CODE_RETRY_DEFAULT_STATUS_CODES,
   UPSTREAM_KEYWORD_CAPTURE_DEFAULT_KEYWORDS,
   channelFormSchema,
   channelsQueryKeys,
@@ -245,6 +249,18 @@ function hasAdvancedSettingsValues(values: ChannelFormValues): boolean {
     values.upstream_keyword_capture_enabled ||
     values.upstream_keyword_capture_switch_enabled ||
     values.upstream_keyword_capture_keywords?.trim() ||
+    values.status_code_retry_enabled ||
+    (values.status_code_retry_status_codes?.trim() &&
+      values.status_code_retry_status_codes.trim() !==
+        STATUS_CODE_RETRY_DEFAULT_STATUS_CODES) ||
+    (values.status_code_retry_count ?? STATUS_CODE_RETRY_DEFAULT_COUNT) !==
+      STATUS_CODE_RETRY_DEFAULT_COUNT ||
+    (values.status_code_retry_channel_id ??
+      STATUS_CODE_RETRY_DEFAULT_CHANNEL_ID) !==
+      STATUS_CODE_RETRY_DEFAULT_CHANNEL_ID ||
+    (values.status_code_retry_interval_seconds ??
+      STATUS_CODE_RETRY_DEFAULT_INTERVAL_SECONDS) !==
+      STATUS_CODE_RETRY_DEFAULT_INTERVAL_SECONDS ||
     values.claude_beta_query ||
     values.upstream_model_update_check_enabled ||
     values.upstream_model_update_auto_sync_enabled ||
@@ -2715,7 +2731,9 @@ export function ChannelMutateDrawer({
                               name='upstream_keyword_capture_switch_channel_id'
                               render={({ field }) => (
                                 <FormItem>
-                                  <FormLabel>{t('Target Channel ID')}</FormLabel>
+                                  <FormLabel>
+                                    {t('Target Channel ID')}
+                                  </FormLabel>
                                   <FormControl>
                                     <Input
                                       type='number'
@@ -2785,6 +2803,129 @@ export function ChannelMutateDrawer({
                             )}
                           </FormDescription>
                         </div>
+                      </div>
+
+                      <div className='space-y-3 rounded-lg border p-4'>
+                        <FormField
+                          control={form.control}
+                          name='status_code_retry_enabled'
+                          render={({ field }) => (
+                            <FormItem className='flex items-center justify-between gap-3'>
+                              <div className='space-y-0.5'>
+                                <FormLabel>{t('Status Code Retry')}</FormLabel>
+                                <FormDescription>
+                                  {t(
+                                    'When an upstream response status matches, resend the original request within the current relay flow.'
+                                  )}
+                                </FormDescription>
+                              </div>
+                              <FormControl>
+                                <Switch
+                                  checked={field.value === true}
+                                  onCheckedChange={field.onChange}
+                                />
+                              </FormControl>
+                            </FormItem>
+                          )}
+                        />
+
+                        <div className='grid gap-3 sm:grid-cols-4'>
+                          <FormField
+                            control={form.control}
+                            name='status_code_retry_status_codes'
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>{t('Status Codes')}</FormLabel>
+                                <FormControl>
+                                  <Input
+                                    placeholder={
+                                      STATUS_CODE_RETRY_DEFAULT_STATUS_CODES
+                                    }
+                                    value={field.value || ''}
+                                    onChange={field.onChange}
+                                  />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          <FormField
+                            control={form.control}
+                            name='status_code_retry_count'
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>{t('Retry Count')}</FormLabel>
+                                <FormControl>
+                                  <Input
+                                    type='number'
+                                    min={1}
+                                    placeholder={String(
+                                      STATUS_CODE_RETRY_DEFAULT_COUNT
+                                    )}
+                                    value={field.value ?? ''}
+                                    onChange={(event) =>
+                                      field.onChange(Number(event.target.value))
+                                    }
+                                  />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          <FormField
+                            control={form.control}
+                            name='status_code_retry_channel_id'
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>{t('Retry Channel ID')}</FormLabel>
+                                <FormControl>
+                                  <Input
+                                    type='number'
+                                    min={0}
+                                    placeholder={String(
+                                      STATUS_CODE_RETRY_DEFAULT_CHANNEL_ID
+                                    )}
+                                    value={field.value ?? ''}
+                                    onChange={(event) =>
+                                      field.onChange(Number(event.target.value))
+                                    }
+                                  />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          <FormField
+                            control={form.control}
+                            name='status_code_retry_interval_seconds'
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>
+                                  {t('Retry Interval Seconds')}
+                                </FormLabel>
+                                <FormControl>
+                                  <Input
+                                    type='number'
+                                    min={0}
+                                    placeholder={String(
+                                      STATUS_CODE_RETRY_DEFAULT_INTERVAL_SECONDS
+                                    )}
+                                    value={field.value ?? ''}
+                                    onChange={(event) =>
+                                      field.onChange(Number(event.target.value))
+                                    }
+                                  />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        </div>
+                        <FormDescription>
+                          {t(
+                            'Status codes support comma-separated values and ranges such as 429,500-503. Retry channel ID 0 means the original channel; greater than 0 means the specified channel. Defaults: 429, retry 1 time, channel 0, interval 0 seconds.'
+                          )}
+                        </FormDescription>
                       </div>
                     </div>
 
@@ -3564,7 +3705,9 @@ export function ChannelMutateDrawer({
         redirectSourceModels={redirectModelKeyList}
         customFetcher={!isEditing ? createModeFetcher : undefined}
         existingModelsOverride={
-          !isEditing ? parseModelsString(form.getValues('models') || '') : undefined
+          !isEditing
+            ? parseModelsString(form.getValues('models') || '')
+            : undefined
         }
       />
 

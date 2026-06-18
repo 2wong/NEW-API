@@ -67,6 +67,11 @@ export const channelFormSchema = z.object({
   upstream_keyword_capture_switch_channel_id: z.number().optional(),
   upstream_keyword_capture_switch_count: z.number().optional(),
   upstream_keyword_capture_switch_ttl_seconds: z.number().optional(),
+  status_code_retry_enabled: z.boolean().optional(),
+  status_code_retry_status_codes: z.string().optional(),
+  status_code_retry_count: z.number().optional(),
+  status_code_retry_channel_id: z.number().optional(),
+  status_code_retry_interval_seconds: z.number().optional(),
   // Type-specific settings (stored in settings JSON)
   is_enterprise_account: z.boolean().optional(), // OpenRouter specific
   vertex_key_type: z.enum(['json', 'api_key']).optional(), // Vertex AI specific
@@ -98,6 +103,10 @@ export const UPSTREAM_KEYWORD_CAPTURE_DEFAULT_KEYWORDS = [
 export const UPSTREAM_KEYWORD_CAPTURE_DEFAULT_SWITCH_CHANNEL_ID = 15
 export const UPSTREAM_KEYWORD_CAPTURE_DEFAULT_SWITCH_COUNT = 1
 export const UPSTREAM_KEYWORD_CAPTURE_DEFAULT_SWITCH_TTL_SECONDS = 600
+export const STATUS_CODE_RETRY_DEFAULT_STATUS_CODES = '429'
+export const STATUS_CODE_RETRY_DEFAULT_COUNT = 1
+export const STATUS_CODE_RETRY_DEFAULT_CHANNEL_ID = 0
+export const STATUS_CODE_RETRY_DEFAULT_INTERVAL_SECONDS = 0
 
 export function formatUpstreamKeywordCaptureKeywords(
   keywords: unknown
@@ -127,6 +136,11 @@ function parseUpstreamKeywordCaptureKeywords(value: string | undefined) {
 function parsePositiveInteger(value: unknown, fallback: number): number {
   const parsed = Number(value)
   return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : fallback
+}
+
+function parseNonNegativeInteger(value: unknown, fallback: number): number {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) && parsed >= 0 ? Math.floor(parsed) : fallback
 }
 
 // ============================================================================
@@ -175,6 +189,12 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
     UPSTREAM_KEYWORD_CAPTURE_DEFAULT_SWITCH_COUNT,
   upstream_keyword_capture_switch_ttl_seconds:
     UPSTREAM_KEYWORD_CAPTURE_DEFAULT_SWITCH_TTL_SECONDS,
+  status_code_retry_enabled: false,
+  status_code_retry_status_codes: STATUS_CODE_RETRY_DEFAULT_STATUS_CODES,
+  status_code_retry_count: STATUS_CODE_RETRY_DEFAULT_COUNT,
+  status_code_retry_channel_id: STATUS_CODE_RETRY_DEFAULT_CHANNEL_ID,
+  status_code_retry_interval_seconds:
+    STATUS_CODE_RETRY_DEFAULT_INTERVAL_SECONDS,
   // Type-specific settings
   is_enterprise_account: false,
   vertex_key_type: 'json',
@@ -220,6 +240,12 @@ export function transformChannelToFormDefaults(
       UPSTREAM_KEYWORD_CAPTURE_DEFAULT_SWITCH_COUNT,
     upstream_keyword_capture_switch_ttl_seconds:
       UPSTREAM_KEYWORD_CAPTURE_DEFAULT_SWITCH_TTL_SECONDS,
+    status_code_retry_enabled: false,
+    status_code_retry_status_codes: STATUS_CODE_RETRY_DEFAULT_STATUS_CODES,
+    status_code_retry_count: STATUS_CODE_RETRY_DEFAULT_COUNT,
+    status_code_retry_channel_id: STATUS_CODE_RETRY_DEFAULT_CHANNEL_ID,
+    status_code_retry_interval_seconds:
+      STATUS_CODE_RETRY_DEFAULT_INTERVAL_SECONDS,
   }
 
   if (channel.setting) {
@@ -234,10 +260,9 @@ export function transformChannelToFormDefaults(
         system_prompt_override: parsed.system_prompt_override || false,
         upstream_keyword_capture_enabled:
           parsed.upstream_keyword_capture_enabled === true,
-        upstream_keyword_capture_keywords:
-          formatUpstreamKeywordCaptureKeywords(
-            parsed.upstream_keyword_capture_keywords
-          ),
+        upstream_keyword_capture_keywords: formatUpstreamKeywordCaptureKeywords(
+          parsed.upstream_keyword_capture_keywords
+        ),
         upstream_keyword_capture_switch_enabled:
           parsed.upstream_keyword_capture_switch_enabled === true,
         upstream_keyword_capture_switch_channel_id: parsePositiveInteger(
@@ -251,6 +276,22 @@ export function transformChannelToFormDefaults(
         upstream_keyword_capture_switch_ttl_seconds: parsePositiveInteger(
           parsed.upstream_keyword_capture_switch_ttl_seconds,
           UPSTREAM_KEYWORD_CAPTURE_DEFAULT_SWITCH_TTL_SECONDS
+        ),
+        status_code_retry_enabled: parsed.status_code_retry_enabled === true,
+        status_code_retry_status_codes:
+          parsed.status_code_retry_status_codes ||
+          STATUS_CODE_RETRY_DEFAULT_STATUS_CODES,
+        status_code_retry_count: parsePositiveInteger(
+          parsed.status_code_retry_count,
+          STATUS_CODE_RETRY_DEFAULT_COUNT
+        ),
+        status_code_retry_channel_id: parseNonNegativeInteger(
+          parsed.status_code_retry_channel_id,
+          STATUS_CODE_RETRY_DEFAULT_CHANNEL_ID
+        ),
+        status_code_retry_interval_seconds: parseNonNegativeInteger(
+          parsed.status_code_retry_interval_seconds,
+          STATUS_CODE_RETRY_DEFAULT_INTERVAL_SECONDS
         ),
       }
     } catch (error) {
@@ -379,6 +420,22 @@ function buildSettingJSON(formData: ChannelFormValues): string {
     upstream_keyword_capture_switch_ttl_seconds: parsePositiveInteger(
       formData.upstream_keyword_capture_switch_ttl_seconds,
       UPSTREAM_KEYWORD_CAPTURE_DEFAULT_SWITCH_TTL_SECONDS
+    ),
+    status_code_retry_enabled: formData.status_code_retry_enabled === true,
+    status_code_retry_status_codes:
+      formData.status_code_retry_status_codes ||
+      STATUS_CODE_RETRY_DEFAULT_STATUS_CODES,
+    status_code_retry_count: parsePositiveInteger(
+      formData.status_code_retry_count,
+      STATUS_CODE_RETRY_DEFAULT_COUNT
+    ),
+    status_code_retry_channel_id: parseNonNegativeInteger(
+      formData.status_code_retry_channel_id,
+      STATUS_CODE_RETRY_DEFAULT_CHANNEL_ID
+    ),
+    status_code_retry_interval_seconds: parseNonNegativeInteger(
+      formData.status_code_retry_interval_seconds,
+      STATUS_CODE_RETRY_DEFAULT_INTERVAL_SECONDS
     ),
   }
   return JSON.stringify(settingObj)

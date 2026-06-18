@@ -13,6 +13,11 @@ type ChannelSettings struct {
 	UpstreamKeywordCaptureSwitchChannelId  int      `json:"upstream_keyword_capture_switch_channel_id,omitempty"`
 	UpstreamKeywordCaptureSwitchCount      int      `json:"upstream_keyword_capture_switch_count,omitempty"`
 	UpstreamKeywordCaptureSwitchTTLSeconds int      `json:"upstream_keyword_capture_switch_ttl_seconds,omitempty"`
+	StatusCodeRetryEnabled                 bool     `json:"status_code_retry_enabled,omitempty"`
+	StatusCodeRetryStatusCodes             string   `json:"status_code_retry_status_codes,omitempty"`
+	StatusCodeRetryCount                   int      `json:"status_code_retry_count,omitempty"`
+	StatusCodeRetryChannelId               int      `json:"status_code_retry_channel_id,omitempty"`
+	StatusCodeRetryIntervalSeconds         int      `json:"status_code_retry_interval_seconds,omitempty"`
 }
 
 type VertexKeyType string

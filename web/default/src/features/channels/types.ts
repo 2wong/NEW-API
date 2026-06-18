@@ -92,6 +92,11 @@ export interface ChannelSettings {
   upstream_keyword_capture_switch_channel_id?: number
   upstream_keyword_capture_switch_count?: number
   upstream_keyword_capture_switch_ttl_seconds?: number
+  status_code_retry_enabled?: boolean
+  status_code_retry_status_codes?: string
+  status_code_retry_count?: number
+  status_code_retry_channel_id?: number
+  status_code_retry_interval_seconds?: number
 }
 
 export interface ChannelOtherSettings {

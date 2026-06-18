@@ -230,7 +230,19 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 
 		processChannelError(c, *types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey, common.GetContextKeyString(c, constant.ContextKeyChannelKey), channel.GetAutoBan()), newAPIError)
 
-		if types.IsUpstreamKeywordCapturedError(newAPIError) {
+		retryGroup := common.GetContextKeyString(c, constant.ContextKeyAutoGroup)
+		if retryGroup == "" {
+			retryGroup = common.GetContextKeyString(c, constant.ContextKeyUsingGroup)
+		}
+		if retryGroup == "" {
+			retryGroup = relayInfo.UsingGroup
+		}
+		if retryGroup == "" {
+			retryGroup = relayInfo.TokenGroup
+		}
+		if service.PrepareStatusCodeRetry(c, channel, newAPIError, relayInfo.OriginModelName, retryGroup) {
+			retryParam.ResetRetryNextTry()
+		} else if types.IsUpstreamKeywordCapturedError(newAPIError) {
 			retryParam.ResetRetryNextTry()
 		}
 		if !shouldRetry(c, newAPIError, common.RetryTimes-retryParam.GetRetry()) {
@@ -293,19 +305,6 @@ func fastTokenCountMetaForPricing(request dto.Request) *types.TokenCountMeta {
 }
 
 func getChannel(c *gin.Context, info *relaycommon.RelayInfo, retryParam *service.RetryParam) (*model.Channel, *types.NewAPIError) {
-	if info.ChannelMeta == nil {
-		autoBan := c.GetBool("auto_ban")
-		autoBanInt := 1
-		if !autoBan {
-			autoBanInt = 0
-		}
-		return &model.Channel{
-			Id:      c.GetInt("channel_id"),
-			Type:    c.GetInt("channel_type"),
-			Name:    c.GetString("channel_name"),
-			AutoBan: &autoBanInt,
-		}, nil
-	}
 	switchGroup := common.GetContextKeyString(c, constant.ContextKeyAutoGroup)
 	if switchGroup == "" {
 		switchGroup = common.GetContextKeyString(c, constant.ContextKeyUsingGroup)
@@ -313,12 +312,38 @@ func getChannel(c *gin.Context, info *relaycommon.RelayInfo, retryParam *service
 	if switchGroup == "" {
 		switchGroup = info.UsingGroup
 	}
+	if channel, ok := service.ApplyStatusCodeRetryCurrentChannel(c, info.OriginModelName, switchGroup); ok {
+		newAPIError := middleware.SetupContextForSelectedChannel(c, channel, info.OriginModelName)
+		if newAPIError != nil {
+			return nil, newAPIError
+		}
+		return channel, nil
+	}
 	if channel, ok := service.ApplyUpstreamKeywordCaptureCurrentRetryChannelSwitch(c, info.OriginModelName, switchGroup); ok {
 		newAPIError := middleware.SetupContextForSelectedChannel(c, channel, info.OriginModelName)
 		if newAPIError != nil {
 			return nil, newAPIError
 		}
 		return channel, nil
+	}
+	if info.ChannelMeta == nil {
+		channelId := c.GetInt("channel_id")
+		if channelId > 0 {
+			if channel, err := model.CacheGetChannel(channelId); err == nil && channel != nil {
+				return channel, nil
+			}
+		}
+		autoBan := c.GetBool("auto_ban")
+		autoBanInt := 1
+		if !autoBan {
+			autoBanInt = 0
+		}
+		return &model.Channel{
+			Id:      channelId,
+			Type:    c.GetInt("channel_type"),
+			Name:    c.GetString("channel_name"),
+			AutoBan: &autoBanInt,
+		}, nil
 	}
 
 	channel, selectGroup, err := service.CacheGetRandomSatisfiedChannel(retryParam)
@@ -362,6 +387,9 @@ func shouldRetry(c *gin.Context, openaiErr *types.NewAPIError, retryTimes int) b
 		return false
 	}
 	if types.IsUpstreamKeywordCapturedError(openaiErr) {
+		return true
+	}
+	if service.HasPendingStatusCodeRetry(c) {
 		return true
 	}
 	if retryTimes <= 0 {

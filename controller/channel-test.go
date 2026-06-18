@@ -58,6 +58,70 @@ func normalizeChannelTestEndpoint(channel *model.Channel, modelName, endpointTyp
 }
 
 func testChannel(channel *model.Channel, testModel string, endpointType string, isStream bool) testResult {
+	currentChannel := channel
+	attempts := map[string]int{}
+	for {
+		result := testChannelOnce(currentChannel, testModel, endpointType, isStream)
+		nextChannel, ok := nextStatusCodeRetryChannelForChannelTest(result.context, currentChannel, result.newAPIError, testModel, attempts)
+		if !ok {
+			return result
+		}
+		currentChannel = nextChannel
+	}
+}
+
+func channelTestRetryGroup(c *gin.Context) string {
+	group := common.GetContextKeyString(c, constant.ContextKeyAutoGroup)
+	if group == "" {
+		group = common.GetContextKeyString(c, constant.ContextKeyUsingGroup)
+	}
+	return group
+}
+
+func nextStatusCodeRetryChannelForChannelTest(c *gin.Context, source *model.Channel, newAPIError *types.NewAPIError, requestedModel string, attempts map[string]int) (*model.Channel, bool) {
+	if c == nil || source == nil || newAPIError == nil || types.IsSkipRetryError(newAPIError) {
+		return nil, false
+	}
+	statusCode := newAPIError.StatusCode
+	setting := source.GetSetting()
+	if !service.ShouldStatusCodeRetry(setting, statusCode) {
+		return nil, false
+	}
+	count := service.NormalizeStatusCodeRetryCountForLog(setting.StatusCodeRetryCount)
+	key := fmt.Sprintf("%d:%d", source.Id, statusCode)
+	if attempts[key] >= count {
+		return nil, false
+	}
+	targetChannelID := service.ResolveStatusCodeRetryTargetChannelID(source.Id, setting)
+	target, err := model.CacheGetChannel(targetChannelID)
+	if err != nil || target == nil {
+		common.SysError(fmt.Sprintf("channel test status code retry target unavailable: source=%d target=%d err=%v", source.Id, targetChannelID, err))
+		return nil, false
+	}
+	if target.Status != common.ChannelStatusEnabled {
+		common.SysError(fmt.Sprintf("channel test status code retry target disabled: source=%d target=%d", source.Id, targetChannelID))
+		return nil, false
+	}
+	modelName := strings.TrimSpace(requestedModel)
+	if modelName == "" {
+		modelName = common.GetContextKeyString(c, constant.ContextKeyOriginalModel)
+	}
+	group := channelTestRetryGroup(c)
+	if group != "" && group != "auto" && modelName != "" && !model.IsChannelEnabledForGroupModel(group, modelName, target.Id) {
+		common.SysError(fmt.Sprintf("channel test status code retry target does not serve model/group: source=%d target=%d group=%s model=%s", source.Id, target.Id, group, modelName))
+		return nil, false
+	}
+	attempts[key]++
+	interval := service.NormalizeStatusCodeRetryIntervalSecondsForLog(setting.StatusCodeRetryIntervalSeconds)
+	if interval > 0 {
+		common.SysLog(fmt.Sprintf("channel test status code retry waiting: source=%d target=%d status=%d interval_seconds=%d", source.Id, target.Id, statusCode, interval))
+		time.Sleep(time.Duration(interval) * time.Second)
+	}
+	common.SysLog(fmt.Sprintf("channel test status code retry armed: source=%d target=%d status=%d attempt=%d/%d interval_seconds=%d", source.Id, target.Id, statusCode, attempts[key], count, interval))
+	return target, true
+}
+
+func testChannelOnce(channel *model.Channel, testModel string, endpointType string, isStream bool) testResult {
 	tik := time.Now()
 	var unsupportedTestChannelTypes = []int{
 		constant.ChannelTypeMidjourney,
